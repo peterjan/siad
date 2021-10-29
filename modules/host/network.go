@@ -414,10 +414,12 @@ func (h *Host) threadedHandleStream(stream siamux.Stream) {
 		return
 	}
 
+	var out string
 	switch rpcID {
 	case modules.RPCAccountBalance:
 		fmt.Println(uidStr, time.Now(), "RPCAccountBalance")
-		err = h.managedRPCAccountBalance(stream)
+		out, err = h.managedRPCAccountBalance(stream)
+		fmt.Println(uidStr, time.Now(), "RPCAccountBalance Output:", out)
 	case modules.RPCExecuteProgram:
 		fmt.Println(uidStr, time.Now(), "RPCExecuteProgram")
 		err = h.managedRPCExecuteProgram(stream)
