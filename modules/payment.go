@@ -61,7 +61,7 @@ type PaymentProcessor interface {
 	// ProcessPayment takes a stream and handles the payment request objects
 	// sent by the caller. Returns an object that implements the PaymentDetails
 	// interface, or an error in case of failure.
-	ProcessPayment(stream siamux.Stream, bh types.BlockHeight) (PaymentDetails, error)
+	ProcessPayment(stream siamux.Stream, bh types.BlockHeight) (PaymentDetails, string, error)
 }
 
 // PaymentDetails is an interface that defines method that give more information
