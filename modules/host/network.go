@@ -419,14 +419,14 @@ func (h *Host) threadedHandleStream(stream siamux.Stream) {
 	case modules.RPCAccountBalance:
 		fmt.Println(uidStr, time.Now(), "RPCAccountBalance")
 		out, err = h.managedRPCAccountBalance(stream)
-		fmt.Println(uidStr, time.Now(), "RPCAccountBalance Output:", out)
+		fmt.Println(uidStr, time.Now(), "RPCAccountBalance Output:\n", out)
 	case modules.RPCExecuteProgram:
 		fmt.Println(uidStr, time.Now(), "RPCExecuteProgram")
 		err = h.managedRPCExecuteProgram(stream)
 	case modules.RPCUpdatePriceTable:
 		fmt.Println(uidStr, time.Now(), "RPCUpdatePriceTable")
 		out, err = h.managedRPCUpdatePriceTable(stream)
-		fmt.Println(uidStr, time.Now(), "RPCUpdatePriceTable Output:", out)
+		fmt.Println(uidStr, time.Now(), "RPCUpdatePriceTable Output:\n", out)
 	case modules.RPCFundAccount:
 		fmt.Println(uidStr, time.Now(), "RPCFundAccount")
 		err = h.managedRPCFundEphemeralAccount(stream)

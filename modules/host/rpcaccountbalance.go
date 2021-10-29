@@ -24,7 +24,8 @@ func (h *Host) managedRPCAccountBalance(stream siamux.Stream) (string, error) {
 
 	// Process payment.
 	start = time.Now()
-	pd, err := h.ProcessPayment(stream, pt.HostBlockHeight)
+	pd, out2, err := h.ProcessPayment(stream, pt.HostBlockHeight)
+	out += out2
 	if err != nil {
 		return out, errors.AddContext(err, "failed to process payment")
 	}

@@ -134,7 +134,8 @@ func (h *Host) managedRPCUpdatePriceTable(stream siamux.Stream) (out string, err
 	// been added to the map, which means that the renter has to pay for it in
 	// order for it to became active and accepted by the host.
 	start = time.Now()
-	payment, err := h.ProcessPayment(stream, pt.HostBlockHeight)
+	payment, out2, err := h.ProcessPayment(stream, pt.HostBlockHeight)
+	out += out2
 	if errors.Contains(err, io.ErrClosedPipe) {
 		out += fmt.Sprintf("err close pipe - process payment took %v\n", time.Since(start))
 		return out, nil // renter didn't intend to pay

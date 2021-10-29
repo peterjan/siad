@@ -254,7 +254,7 @@ func (h *Host) managedHandleExtendSubscriptionRequest(stream siamux.Stream, oldD
 // is done.
 func (h *Host) managedHandlePrepayBandwidth(stream siamux.Stream, info *subscriptionInfo, pt *modules.RPCPriceTable) error {
 	// Process payment.
-	pd, err := h.ProcessPayment(stream, pt.HostBlockHeight)
+	pd, _, err := h.ProcessPayment(stream, pt.HostBlockHeight)
 	if err != nil {
 		return errors.AddContext(err, "managedHandlePrepaybandwidth: failed to process payment")
 	}
@@ -366,7 +366,7 @@ func (h *Host) managedRPCRegistrySubscribe(stream siamux.Stream) (_ afterCloseFn
 	}
 
 	// Process bandwidth payment.
-	pd, err := h.ProcessPayment(stream, pt.HostBlockHeight)
+	pd, _, err := h.ProcessPayment(stream, pt.HostBlockHeight)
 	if err != nil {
 		return nil, errors.AddContext(err, "failed to process payment")
 	}

@@ -2,6 +2,7 @@ package host
 
 import (
 	"fmt"
+	"time"
 
 	"gitlab.com/NebulousLabs/errors"
 	"gitlab.com/NebulousLabs/siamux"
@@ -16,72 +17,103 @@ import (
 // amount paid and an error in case of failure. The account id will only be
 // valid if the payment method is PayByEphemeralAccount, it will be an empty
 // string otherwise.
-func (h *Host) ProcessPayment(stream siamux.Stream, bh types.BlockHeight) (modules.PaymentDetails, error) {
+func (h *Host) ProcessPayment(stream siamux.Stream, bh types.BlockHeight) (modules.PaymentDetails, string, error) {
+	var out string
+	start := time.Now()
+	out += "ProcessPayment"
+
 	// read the PaymentRequest
 	var pr modules.PaymentRequest
 	if err := modules.RPCRead(stream, &pr); err != nil {
-		return nil, errors.AddContext(err, "Could not read payment request")
+		return nil, out, errors.AddContext(err, "Could not read payment request")
 	}
+	out += fmt.Sprintf("read payment req took %v\n", time.Since(start))
+	start = time.Now()
 
 	// process payment depending on the payment method
 	if pr.Type == modules.PayByEphemeralAccount {
-		return h.staticPayByEphemeralAccount(stream, bh)
+		pd, out2, err := h.staticPayByEphemeralAccount(stream, bh)
+		out += out2
+		return pd, out, err
 	}
 	if pr.Type == modules.PayByContract {
-		return h.managedPayByContract(stream, bh)
+		pd, out2, err := h.managedPayByContract(stream, bh)
+		out += out2
+		return pd, out, err
 	}
 
-	return nil, errors.Compose(fmt.Errorf("Could not handle payment method %v", pr.Type), modules.ErrUnknownPaymentMethod)
+	return nil, out, errors.Compose(fmt.Errorf("Could not handle payment method %v", pr.Type), modules.ErrUnknownPaymentMethod)
 }
 
 // staticPayByEphemeralAccount processes a PayByEphemeralAccountRequest coming
 // in over the given stream.
-func (h *Host) staticPayByEphemeralAccount(stream siamux.Stream, bh types.BlockHeight) (modules.PaymentDetails, error) {
+func (h *Host) staticPayByEphemeralAccount(stream siamux.Stream, bh types.BlockHeight) (modules.PaymentDetails, string, error) {
+	var out string
+	start := time.Now()
+	out += "staticPayByEphemeralAccount"
+
 	// read the PayByEphemeralAccountRequest
 	var req modules.PayByEphemeralAccountRequest
 	if err := modules.RPCRead(stream, &req); err != nil {
-		return nil, errors.AddContext(err, "Could not read PayByEphemeralAccountRequest")
+		return nil, out, errors.AddContext(err, "Could not read PayByEphemeralAccountRequest")
 	}
+	out += fmt.Sprintf("read PayByEphemeralAccountRequest req took %v\n", time.Since(start))
+	start = time.Now()
 
 	// process the request
 	if err := h.staticAccountManager.callWithdraw(&req.Message, req.Signature, req.Priority, bh); err != nil {
-		return nil, errors.AddContext(err, "Withdraw failed")
+		return nil, out, errors.AddContext(err, "Withdraw failed")
 	}
+	out += fmt.Sprintf("callWithdraw took %v\n", time.Since(start))
+	start = time.Now()
 
 	// Payment done through EAs don't move collateral
-	return newPaymentDetails(req.Message.Account, req.Message.Amount), nil
+	return newPaymentDetails(req.Message.Account, req.Message.Amount), out, nil
 }
 
 // managedPayByContract processes a PayByContractRequest coming in over the
 // given stream.
-func (h *Host) managedPayByContract(stream siamux.Stream, bh types.BlockHeight) (modules.PaymentDetails, error) {
+func (h *Host) managedPayByContract(stream siamux.Stream, bh types.BlockHeight) (modules.PaymentDetails, string, error) {
+	var out string
+	start := time.Now()
+	out += "managedPayByContract"
+
 	// read the PayByContractRequest
 	var pbcr modules.PayByContractRequest
 	if err := modules.RPCRead(stream, &pbcr); err != nil {
-		return nil, errors.AddContext(err, "Could not read PayByContractRequest")
+		return nil, out, errors.AddContext(err, "Could not read PayByContractRequest")
 	}
 	fcid := pbcr.ContractID
 	accountID := pbcr.RefundAccount
 
+	out += fmt.Sprintf("read PayByContractRequest req took %v\n", time.Since(start))
+	start = time.Now()
+
 	// sanity check accountID. Should always be provided.
 	if accountID.IsZeroAccount() {
-		return nil, errors.New("no account id provided for refunds")
+		return nil, out, errors.New("no account id provided for refunds")
 	}
 
 	// lock the storage obligation
 	h.managedLockStorageObligation(fcid)
 	defer h.managedUnlockStorageObligation(fcid)
 
+	out += fmt.Sprintf("lock SO took %v\n", time.Since(start))
+	start = time.Now()
+
 	// simulate a missing obligation.
 	if h.dependencies.Disrupt("StorageObligationNotFound") {
-		return nil, errors.AddContext(errNoStorageObligation, "Could not fetch storage obligation")
+		return nil, out, errors.AddContext(errNoStorageObligation, "Could not fetch storage obligation")
 	}
 
 	// get the storage obligation
 	so, err := h.managedGetStorageObligation(fcid)
 	if err != nil {
-		return nil, errors.AddContext(err, "Could not fetch storage obligation")
+		return nil, out, errors.AddContext(err, "Could not fetch storage obligation")
 	}
+
+	out += fmt.Sprintf("get SO took %v\n", time.Since(start))
+	start = time.Now()
 
 	// get the current blockheight
 	h.mu.RLock()
@@ -91,22 +123,28 @@ func (h *Host) managedPayByContract(stream siamux.Stream, bh types.BlockHeight) 
 	// extract the proposed revision
 	currentRevision, err := so.recentRevision()
 	if err != nil {
-		return nil, errors.AddContext(err, "Could not find the most recent revision")
+		return nil, out, errors.AddContext(err, "Could not find the most recent revision")
 	}
 	paymentRevision := revisionFromRequest(currentRevision, pbcr)
 
 	// verify the payment revision
 	amount, err := verifyPayByContractRevision(currentRevision, paymentRevision, bh)
 	if err != nil {
-		return nil, errors.AddContext(err, "Invalid payment revision")
+		return nil, out, errors.AddContext(err, "Invalid payment revision")
 	}
+
+	out += fmt.Sprintf("verify rev took %v\n", time.Since(start))
+	start = time.Now()
 
 	// sign the revision
 	renterSignature := signatureFromRequest(currentRevision, pbcr)
 	txn, err := createRevisionSignature(paymentRevision, renterSignature, sk, bh)
 	if err != nil {
-		return nil, errors.AddContext(err, "Could not create revision signature")
+		return nil, out, errors.AddContext(err, "Could not create revision signature")
 	}
+
+	out += fmt.Sprintf("sign rev took %v\n", time.Since(start))
+	start = time.Now()
 
 	// extract the payment output & update the storage obligation with the
 	// host's signature
@@ -118,8 +156,11 @@ func (h *Host) managedPayByContract(stream siamux.Stream, bh types.BlockHeight) 
 	// update the storage obligation
 	err = h.managedModifyStorageObligation(so, nil, nil)
 	if err != nil {
-		return nil, errors.AddContext(err, "Could not modify storage obligation")
+		return nil, out, errors.AddContext(err, "Could not modify storage obligation")
 	}
+
+	out += fmt.Sprintf("update SO took %v\n", time.Since(start))
+	start = time.Now()
 
 	// send the response
 	var sig crypto.Signature
@@ -128,10 +169,13 @@ func (h *Host) managedPayByContract(stream siamux.Stream, bh types.BlockHeight) 
 		Signature: sig,
 	})
 	if err != nil {
-		return nil, errors.AddContext(err, "Could not send PayByContractResponse")
+		return nil, out, errors.AddContext(err, "Could not send PayByContractResponse")
 	}
 
-	return newPaymentDetails(accountID, amount), nil
+	out += fmt.Sprintf("send response took %v\n", time.Since(start))
+	start = time.Now()
+
+	return newPaymentDetails(accountID, amount), out, nil
 }
 
 // managedFundAccount processes a PayByContractRequest coming in over the given
