@@ -136,6 +136,7 @@ func (h *Host) managedRPCUpdatePriceTable(stream siamux.Stream) (out string, err
 	start = time.Now()
 	payment, err := h.ProcessPayment(stream, pt.HostBlockHeight)
 	if errors.Contains(err, io.ErrClosedPipe) {
+		out += fmt.Sprintf("err close pipe - process payment took %v\n", time.Since(start))
 		return out, nil // renter didn't intend to pay
 	}
 	if err != nil {
