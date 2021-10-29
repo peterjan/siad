@@ -347,6 +347,8 @@ func (h *Host) threadedHandleConn(conn net.Conn) {
 
 // threadedHandleStream handles incoming SiaMux streams.
 func (h *Host) threadedHandleStream(stream siamux.Stream) {
+	fmt.Println(time.Now(), "threadedHandleStream")
+	start := time.Now()
 	// close the stream when the method terminates
 	var cleanup afterCloseFn
 	defer func() {
@@ -408,18 +410,25 @@ func (h *Host) threadedHandleStream(stream siamux.Stream) {
 
 	switch rpcID {
 	case modules.RPCAccountBalance:
+		fmt.Println(time.Now(), "RPCAccountBalance")
 		err = h.managedRPCAccountBalance(stream)
 	case modules.RPCExecuteProgram:
+		fmt.Println(time.Now(), "RPCExecuteProgram")
 		err = h.managedRPCExecuteProgram(stream)
 	case modules.RPCUpdatePriceTable:
+		fmt.Println(time.Now(), "RPCUpdatePriceTable")
 		err = h.managedRPCUpdatePriceTable(stream)
 	case modules.RPCFundAccount:
+		fmt.Println(time.Now(), "RPCFundAccount")
 		err = h.managedRPCFundEphemeralAccount(stream)
 	case modules.RPCLatestRevision:
+		fmt.Println(time.Now(), "RPCLatestRevision")
 		err = h.managedRPCLatestRevision(stream)
 	case modules.RPCRegistrySubscription:
+		fmt.Println(time.Now(), "RPCRegistrySubscription")
 		cleanup, err = h.managedRPCRegistrySubscribe(stream)
 	case modules.RPCRenewContract:
+		fmt.Println(time.Now(), "RPCRenewContract")
 		err = h.managedRPCRenewContract(stream)
 	default:
 		h.log.Debugf("WARN: incoming stream %v requested unknown RPC \"%v\"", stream.RemoteAddr().String(), rpcID)
@@ -428,10 +437,12 @@ func (h *Host) threadedHandleStream(stream siamux.Stream) {
 	}
 
 	if err != nil {
+		fmt.Println(time.Now(), "RPC error", err)
 		err = errors.Compose(err, modules.RPCWriteError(stream, err))
 		atomic.AddUint64(&h.atomicErroredCalls, 1)
 		h.managedLogError(err)
 	}
+	fmt.Println(time.Now(), "took", time.Since(start))
 }
 
 // threadedListen listens for incoming RPCs and spawns an appropriate handler for each.
